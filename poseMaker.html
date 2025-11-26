@@ -1,0 +1,1508 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VRM 포즈 에디터</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            overflow: hidden;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 350px 1fr 300px;
+            height: 100vh;
+            gap: 0;
+        }
+
+        .panel {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            overflow-y: auto;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.2);
+            max-height: 100vh;
+        }
+
+        .left-panel {
+            border-right: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        .right-panel {
+            border-left: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        .panel-content {
+            padding: 20px;
+            padding-bottom: 100px; /* 맨 아래까지 스크롤 가능하도록 여유 공간 */
+        }
+
+        /* 스크롤바 더 강조 */
+        .panel::-webkit-scrollbar {
+            width: 12px;
+        }
+
+        .panel::-webkit-scrollbar-track {
+            background: #e0e0e0;
+            border-radius: 6px;
+        }
+
+        .panel::-webkit-scrollbar-thumb {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 6px;
+            border: 2px solid #e0e0e0;
+        }
+
+        .panel::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+        }
+
+        .panel-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            font-size: 18px;
+            font-weight: bold;
+            text-align: center;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        #viewer {
+            position: relative;
+            background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+        }
+
+        #vrmCanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            color: white;
+            font-size: 12px;
+        }
+
+        .controls p {
+            margin: 5px 0;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        .file-input-label {
+            display: block;
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-align: center;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: bold;
+        }
+
+        .file-input-label:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .bone-item {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .bone-item.finger-section {
+            border-left-color: #ff6b6b;
+            background: #fff5f5;
+        }
+
+        .collapsible-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+            padding: 10px;
+            background: linear-gradient(135deg, #ff6b6b, #ee5a6f);
+            color: white;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+
+        .collapsible-header:hover {
+            transform: translateX(5px);
+        }
+
+        .collapsible-header .arrow {
+            transition: transform 0.3s;
+        }
+
+        .collapsible-header.collapsed .arrow {
+            transform: rotate(-90deg);
+        }
+
+        .collapsible-content {
+            max-height: 5000px;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+
+        .collapsible-content.collapsed {
+            max-height: 0;
+        }
+
+        .bone-name {
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+
+        .slider-group {
+            margin-bottom: 8px;
+        }
+
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 3px;
+        }
+
+        .slider-value {
+            font-weight: bold;
+            color: #764ba2;
+        }
+
+        .slider-container {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        input[type="range"] {
+            flex: 1;
+            height: 6px;
+            border-radius: 3px;
+            background: linear-gradient(to right, #667eea, #764ba2);
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        input[type="number"] {
+            width: 70px;
+            padding: 5px;
+            border: 2px solid #e0e0e0;
+            border-radius: 5px;
+            font-size: 12px;
+            text-align: center;
+        }
+
+        input[type="number"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: white;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: white;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+        }
+
+        .button {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 10px;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
+        }
+
+        .button-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .button-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .button-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .button-secondary:hover {
+            background: #5a6268;
+        }
+
+        .button-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .button-success:hover {
+            background: #218838;
+        }
+
+        .button-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .button-danger:hover {
+            background: #c82333;
+        }
+
+        .input-group {
+            margin-bottom: 15px;
+        }
+
+        .input-group label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #667eea;
+            font-size: 14px;
+        }
+
+        .input-group input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 5px;
+            font-size: 14px;
+            transition: border 0.3s;
+        }
+
+        .input-group input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .pose-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .pose-item {
+            padding: 12px;
+            margin-bottom: 8px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #28a745;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .pose-item:hover {
+            background: #e9ecef;
+            transform: translateX(5px);
+        }
+
+        .pose-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .pose-item-name {
+            font-weight: bold;
+            color: #333;
+        }
+
+        .pose-item-actions {
+            display: flex;
+            gap: 5px;
+        }
+
+        .pose-item-btn {
+            padding: 5px 10px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.3s;
+        }
+
+        .pose-item-btn.load {
+            background: #667eea;
+            color: white;
+        }
+
+        .pose-item-btn.delete {
+            background: #dc3545;
+            color: white;
+        }
+
+        .code-output {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+            margin-top: 15px;
+        }
+
+        .section {
+            margin-bottom: 25px;
+        }
+
+        .section-title {
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 16px;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 5px;
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #764ba2;
+        }
+
+        .info-box {
+            background: #e7f3ff;
+            border-left: 4px solid #2196F3;
+            padding: 12px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            font-size: 13px;
+            color: #0d47a1;
+        }
+
+        .warning-box {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 12px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            font-size: 13px;
+            color: #856404;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 왼쪽 패널: 본 컨트롤 -->
+        <div class="panel left-panel">
+            <div class="panel-header">🎮 본 컨트롤</div>
+            <div class="panel-content">
+                <div class="file-input-wrapper">
+                    <label class="file-input-label" for="vrmFile">
+                        📁 VRM 파일 선택
+                    </label>
+                    <input type="file" id="vrmFile" accept=".vrm">
+                </div>
+
+                <div class="info-box">
+                    💡 슬라이더를 조정하여 포즈를 만드세요!
+                </div>
+
+                <div id="boneControls"></div>
+            </div>
+        </div>
+
+        <!-- 중앙: 3D 뷰어 -->
+        <div id="viewer">
+            <canvas id="vrmCanvas"></canvas>
+            <div class="controls">
+                <p><strong>🖱️ 조작법</strong></p>
+                <p>• 마우스 드래그: 회전</p>
+                <p>• 휠: 줌 인/아웃</p>
+                <p>• 우클릭 드래그: 이동</p>
+            </div>
+        </div>
+
+        <!-- 오른쪽 패널: 애니메이션 관리 -->
+        <div class="panel right-panel">
+            <div class="panel-header">🎬 애니메이션 관리</div>
+            <div class="panel-content">
+                <div class="section">
+                    <div class="section-title">📁 파일 관리</div>
+                    <div class="file-input-wrapper">
+                        <label class="file-input-label" for="jsonFile" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%);">
+                            📥 JSON 파일 불러오기
+                        </label>
+                        <input type="file" id="jsonFile" accept=".json">
+                    </div>
+                    
+                    <button class="button button-primary" id="saveAllJsonBtn" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%);">
+                        💾 모든 애니메이션 JSON 저장
+                    </button>
+                </div>
+
+                <div class="section">
+                    <div class="section-title">📍 현재 키프레임</div>
+                    <div class="input-group">
+                        <label>키프레임 이름</label>
+                        <input type="text" id="keyframeName" placeholder="예: wave_start">
+                    </div>
+                    <div class="input-group">
+                        <label>시간 (초)</label>
+                        <input type="number" id="keyframeTime" value="0" step="0.1" min="0" placeholder="0.0">
+                    </div>
+
+                    <button class="button button-success" id="addKeyframeBtn">
+                        ➕ 키프레임 추가
+                    </button>
+
+                    <button class="button button-secondary" id="resetPoseBtn">
+                        🔄 포즈 리셋
+                    </button>
+                </div>
+
+                <div class="section">
+                    <div class="section-title">🎞️ 키프레임 목록</div>
+                    <button class="button button-danger" id="clearKeyframesBtn" style="margin-bottom: 10px;">
+                        🗑️ 모든 키프레임 삭제
+                    </button>
+                    <div class="pose-list" id="keyframeList"></div>
+                </div>
+
+                <div class="section">
+                    <div class="section-title">🎬 애니메이션</div>
+                    <div class="input-group">
+                        <label>애니메이션 이름</label>
+                        <input type="text" id="animationName" placeholder="예: wave_hand">
+                    </div>
+
+                    <button class="button button-primary" id="saveAnimationBtn">
+                        💾 애니메이션 저장
+                    </button>
+
+                    <button class="button button-primary" id="previewAnimationBtn" style="background: #17a2b8;">
+                        ▶️ 미리보기
+                    </button>
+                </div>
+
+                <div class="section">
+                    <div class="section-title">📋 저장된 애니메이션</div>
+                    <div class="pose-list" id="animationList"></div>
+                </div>
+
+                <div class="section">
+                    <div class="section-title">📤 코드 내보내기</div>
+                    <div class="warning-box">
+                        ⚠️ 코드를 복사하여 메인 앱에 추가하세요
+                    </div>
+                    <button class="button button-primary" id="exportCodeBtn">
+                        📋 JavaScript 코드 생성
+                    </button>
+                    <div class="code-output" id="codeOutput"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"
+      }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { VRMLoaderPlugin } from 'https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@3/lib/three-vrm.module.js';
+
+        // 글로벌 변수
+        let scene, camera, renderer, vrm, controls, mixer, clock;
+        const currentKeyframes = []; // 현재 작업 중인 키프레임들
+        const savedAnimations = []; // 저장된 애니메이션들
+
+        // VRM에서 사용 가능한 주요 본들
+        const EDITABLE_BONES = [
+            'hips',
+            'spine', 'chest', 'upperChest',
+            'neck', 'head',
+            'leftShoulder', 'leftUpperArm', 'leftLowerArm', 'leftHand',
+            'rightShoulder', 'rightUpperArm', 'rightLowerArm', 'rightHand',
+            'leftUpperLeg', 'leftLowerLeg', 'leftFoot',
+            'rightUpperLeg', 'rightLowerLeg', 'rightFoot',
+            // 왼손 손가락
+            'leftThumbProximal', 'leftThumbIntermediate', 'leftThumbDistal',
+            'leftIndexProximal', 'leftIndexIntermediate', 'leftIndexDistal',
+            'leftMiddleProximal', 'leftMiddleIntermediate', 'leftMiddleDistal',
+            'leftRingProximal', 'leftRingIntermediate', 'leftRingDistal',
+            'leftLittleProximal', 'leftLittleIntermediate', 'leftLittleDistal',
+            // 오른손 손가락
+            'rightThumbProximal', 'rightThumbIntermediate', 'rightThumbDistal',
+            'rightIndexProximal', 'rightIndexIntermediate', 'rightIndexDistal',
+            'rightMiddleProximal', 'rightMiddleIntermediate', 'rightMiddleDistal',
+            'rightRingProximal', 'rightRingIntermediate', 'rightRingDistal',
+            'rightLittleProximal', 'rightLittleIntermediate', 'rightLittleDistal'
+        ];
+
+        // 한글 이름 매핑
+        const BONE_NAMES_KR = {
+            'hips': '골반',
+            'spine': '척추',
+            'chest': '가슴',
+            'upperChest': '상부 가슴',
+            'neck': '목',
+            'head': '머리',
+            'leftShoulder': '왼쪽 어깨',
+            'leftUpperArm': '왼쪽 팔뚝',
+            'leftLowerArm': '왼쪽 팔꿈치',
+            'leftHand': '왼손',
+            'rightShoulder': '오른쪽 어깨',
+            'rightUpperArm': '오른쪽 팔뚝',
+            'rightLowerArm': '오른쪽 팔꿈치',
+            'rightHand': '오른손',
+            'leftUpperLeg': '왼쪽 허벅지',
+            'leftLowerLeg': '왼쪽 종아리',
+            'leftFoot': '왼발',
+            'rightUpperLeg': '오른쪽 허벅지',
+            'rightLowerLeg': '오른쪽 종아리',
+            'rightFoot': '오른발',
+            // 왼손 손가락
+            'leftThumbProximal': '왼손 엄지 첫마디',
+            'leftThumbIntermediate': '왼손 엄지 중간마디',
+            'leftThumbDistal': '왼손 엄지 끝마디',
+            'leftIndexProximal': '왼손 검지 첫마디',
+            'leftIndexIntermediate': '왼손 검지 중간마디',
+            'leftIndexDistal': '왼손 검지 끝마디',
+            'leftMiddleProximal': '왼손 중지 첫마디',
+            'leftMiddleIntermediate': '왼손 중지 중간마디',
+            'leftMiddleDistal': '왼손 중지 끝마디',
+            'leftRingProximal': '왼손 약지 첫마디',
+            'leftRingIntermediate': '왼손 약지 중간마디',
+            'leftRingDistal': '왼손 약지 끝마디',
+            'leftLittleProximal': '왼손 새끼 첫마디',
+            'leftLittleIntermediate': '왼손 새끼 중간마디',
+            'leftLittleDistal': '왼손 새끼 끝마디',
+            // 오른손 손가락
+            'rightThumbProximal': '오른손 엄지 첫마디',
+            'rightThumbIntermediate': '오른손 엄지 중간마디',
+            'rightThumbDistal': '오른손 엄지 끝마디',
+            'rightIndexProximal': '오른손 검지 첫마디',
+            'rightIndexIntermediate': '오른손 검지 중간마디',
+            'rightIndexDistal': '오른손 검지 끝마디',
+            'rightMiddleProximal': '오른손 중지 첫마디',
+            'rightMiddleIntermediate': '오른손 중지 중간마디',
+            'rightMiddleDistal': '오른손 중지 끝마디',
+            'rightRingProximal': '오른손 약지 첫마디',
+            'rightRingIntermediate': '오른손 약지 중간마디',
+            'rightRingDistal': '오른손 약지 끝마디',
+            'rightLittleProximal': '오른손 새끼 첫마디',
+            'rightLittleIntermediate': '오른손 새끼 중간마디',
+            'rightLittleDistal': '오른손 새끼 끝마디'
+        };
+
+        // 3D 씬 초기화
+        function initScene() {
+            const canvas = document.getElementById('vrmCanvas');
+            
+            clock = new THREE.Clock();
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1a1a2e);
+
+            camera = new THREE.PerspectiveCamera(
+                30,
+                canvas.clientWidth / canvas.clientHeight,
+                0.1,
+                20
+            );
+            camera.position.set(0, 1.3, 2.5);
+
+            renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+            renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.outputEncoding = THREE.sRGBEncoding;
+
+            // 조명
+            const light = new THREE.DirectionalLight(0xffffff, 1.2);
+            light.position.set(1, 1, 1);
+            scene.add(light);
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+
+            const frontLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            frontLight.position.set(0, 0.5, 1);
+            scene.add(frontLight);
+
+            // 그리드
+            const gridHelper = new THREE.GridHelper(10, 10, 0x444444, 0x222222);
+            scene.add(gridHelper);
+
+            // OrbitControls
+            controls = new OrbitControls(camera, canvas);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.target.set(0, 1, 0);
+            controls.update();
+
+            animate();
+
+            // 윈도우 리사이즈
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function onWindowResize() {
+            const canvas = document.getElementById('vrmCanvas');
+            camera.aspect = canvas.clientWidth / canvas.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const deltaTime = clock.getDelta();
+            
+            controls.update();
+            if (mixer) mixer.update(deltaTime);
+            if (vrm) vrm.update(deltaTime);
+            renderer.render(scene, camera);
+        }
+
+        // VRM 로드
+        async function loadVRM(file) {
+            const loader = new GLTFLoader();
+            loader.register((parser) => new VRMLoaderPlugin(parser));
+
+            const url = URL.createObjectURL(file);
+            
+            try {
+                const gltf = await loader.loadAsync(url);
+                
+                // 기존 VRM 제거
+                if (vrm) {
+                    scene.remove(vrm.scene);
+                }
+
+                vrm = gltf.userData.vrm;
+                scene.add(vrm.scene);
+
+                // 사용 가능한 본 확인
+                console.log('========================================');
+                console.log('🔍 VRM 본(Bone) 목록 확인');
+                console.log('========================================');
+                
+                const availableBones = [];
+                const missingBones = [];
+                
+                EDITABLE_BONES.forEach(boneName => {
+                    const bone = vrm.humanoid.getNormalizedBoneNode(boneName);
+                    if (bone) {
+                        availableBones.push(boneName);
+                    } else {
+                        missingBones.push(boneName);
+                    }
+                });
+                
+                console.log(`✅ 사용 가능한 본: ${availableBones.length}개`);
+                console.log(`❌ 없는 본: ${missingBones.length}개`);
+                
+                if (missingBones.length > 0) {
+                    console.log('\n⚠️ 이 VRM 모델에 없는 본들:');
+                    missingBones.forEach(name => {
+                        console.log(`  - ${BONE_NAMES_KR[name] || name} (${name})`);
+                    });
+                }
+                
+                console.log('========================================\n');
+
+                // 본 컨트롤 UI 생성
+                createBoneControls();
+
+                console.log('✅ VRM 로드 완료');
+            } catch (error) {
+                console.error('VRM 로드 실패:', error);
+                alert('VRM 파일을 로드할 수 없습니다.');
+            } finally {
+                URL.revokeObjectURL(url);
+            }
+        }
+
+        // 본 컨트롤 UI 생성
+        function createBoneControls() {
+            const container = document.getElementById('boneControls');
+            container.innerHTML = '';
+
+            // 모든 본을 순서대로 생성
+            EDITABLE_BONES.forEach(boneName => {
+                const bone = vrm.humanoid.getNormalizedBoneNode(boneName);
+                if (!bone) {
+                    console.log(`⚠️ 본 없음: ${BONE_NAMES_KR[boneName] || boneName} (${boneName})`);
+                    return;
+                }
+
+                const isFinger = boneName.includes('Thumb') || 
+                                 boneName.includes('Index') || 
+                                 boneName.includes('Middle') || 
+                                 boneName.includes('Ring') || 
+                                 boneName.includes('Little');
+
+                if (isFinger) {
+                    console.log(`✅ 손가락 본 생성: ${BONE_NAMES_KR[boneName] || boneName}`);
+                }
+
+                const boneItem = document.createElement('div');
+                boneItem.className = isFinger ? 'bone-item finger-section' : 'bone-item';
+
+                const boneNameDiv = document.createElement('div');
+                boneNameDiv.className = 'bone-name';
+                boneNameDiv.textContent = `${BONE_NAMES_KR[boneName] || boneName}`;
+                boneItem.appendChild(boneNameDiv);
+
+                ['x', 'y', 'z'].forEach(axis => {
+                    const sliderGroup = document.createElement('div');
+                    sliderGroup.className = 'slider-group';
+
+                    const label = document.createElement('div');
+                    label.className = 'slider-label';
+                    label.innerHTML = `<span>${axis.toUpperCase()}</span>`;
+                    sliderGroup.appendChild(label);
+
+                    const sliderContainer = document.createElement('div');
+                    sliderContainer.className = 'slider-container';
+
+                    const slider = document.createElement('input');
+                    slider.type = 'range';
+                    slider.min = '-3.14';
+                    slider.max = '3.14';
+                    slider.step = '0.01';
+                    slider.value = '0';
+                    slider.id = `${boneName}-${axis}`;
+                    
+                    const numberInput = document.createElement('input');
+                    numberInput.type = 'number';
+                    numberInput.min = '-3.14';
+                    numberInput.max = '3.14';
+                    numberInput.step = '0.01';
+                    numberInput.value = '0';
+                    numberInput.id = `${boneName}-${axis}-input`;
+
+                    slider.addEventListener('input', (e) => {
+                        const value = parseFloat(e.target.value);
+                        bone.rotation[axis] = value;
+                        numberInput.value = value.toFixed(2);
+                    });
+
+                    numberInput.addEventListener('input', (e) => {
+                        let value = parseFloat(e.target.value);
+                        if (isNaN(value)) value = 0;
+                        value = Math.max(-3.14, Math.min(3.14, value));
+                        
+                        bone.rotation[axis] = value;
+                        slider.value = value;
+                        numberInput.value = value.toFixed(2);
+                    });
+
+                    sliderContainer.appendChild(slider);
+                    sliderContainer.appendChild(numberInput);
+                    sliderGroup.appendChild(sliderContainer);
+                    boneItem.appendChild(sliderGroup);
+                });
+
+                container.appendChild(boneItem);
+            });
+
+            console.log('✅ 모든 본 컨트롤 생성 완료!');
+        }
+
+        // 현재 포즈 데이터 가져오기
+        function getCurrentPoseData() {
+            const poseData = {};
+
+            EDITABLE_BONES.forEach(boneName => {
+                const bone = vrm.humanoid.getNormalizedBoneNode(boneName);
+                if (!bone) return;
+
+                const rotation = bone.rotation;
+                
+                // 0이 아닌 값만 저장
+                if (rotation.x !== 0 || rotation.y !== 0 || rotation.z !== 0) {
+                    poseData[boneName] = {
+                        x: parseFloat(rotation.x.toFixed(3)),
+                        y: parseFloat(rotation.y.toFixed(3)),
+                        z: parseFloat(rotation.z.toFixed(3))
+                    };
+                }
+            });
+
+            return poseData;
+        }
+
+        // 포즈 적용
+        function applyPose(poseData) {
+            Object.entries(poseData).forEach(([boneName, rotation]) => {
+                const bone = vrm.humanoid.getNormalizedBoneNode(boneName);
+                if (!bone) return;
+
+                bone.rotation.set(rotation.x, rotation.y, rotation.z);
+
+                // 슬라이더 업데이트
+                ['x', 'y', 'z'].forEach(axis => {
+                    const slider = document.getElementById(`${boneName}-${axis}`);
+                    const numberInput = document.getElementById(`${boneName}-${axis}-input`);
+                    if (slider && numberInput) {
+                        slider.value = rotation[axis];
+                        numberInput.value = rotation[axis].toFixed(2);
+                    }
+                });
+            });
+        }
+
+        // 포즈 리셋
+        function resetPose() {
+            if (!vrm) return;
+
+            EDITABLE_BONES.forEach(boneName => {
+                const bone = vrm.humanoid.getNormalizedBoneNode(boneName);
+                if (!bone) return;
+
+                bone.rotation.set(0, 0, 0);
+
+                // 슬라이더 리셋
+                ['x', 'y', 'z'].forEach(axis => {
+                    const slider = document.getElementById(`${boneName}-${axis}`);
+                    const numberInput = document.getElementById(`${boneName}-${axis}-input`);
+                    if (slider && numberInput) {
+                        slider.value = 0;
+                        numberInput.value = '0.00';
+                    }
+                });
+            });
+        }
+
+        // 키프레임 추가
+        function addKeyframe() {
+            const keyframeName = document.getElementById('keyframeName').value.trim();
+            const keyframeTime = parseFloat(document.getElementById('keyframeTime').value);
+            
+            if (!keyframeName) {
+                alert('키프레임 이름을 입력하세요!');
+                return;
+            }
+
+            if (isNaN(keyframeTime) || keyframeTime < 0) {
+                alert('올바른 시간을 입력하세요! (0 이상)');
+                return;
+            }
+
+            if (!vrm) {
+                alert('먼저 VRM 파일을 로드하세요!');
+                return;
+            }
+
+            const poseData = getCurrentPoseData();
+
+            if (Object.keys(poseData).length === 0) {
+                alert('포즈를 만들어주세요! (최소 하나의 본을 움직여야 합니다)');
+                return;
+            }
+
+            // 키프레임 저장
+            currentKeyframes.push({
+                name: keyframeName,
+                time: keyframeTime,
+                data: poseData
+            });
+
+            // 시간 순으로 정렬
+            currentKeyframes.sort((a, b) => a.time - b.time);
+
+            updateKeyframeList();
+            
+            // 다음 키프레임을 위한 시간 자동 증가
+            document.getElementById('keyframeTime').value = (keyframeTime + 1.0).toFixed(1);
+            document.getElementById('keyframeName').value = '';
+            
+            alert(`✅ 키프레임 "${keyframeName}" (${keyframeTime}초)이 추가되었습니다!`);
+        }
+
+        // 키프레임 리스트 업데이트
+        function updateKeyframeList() {
+            const keyframeList = document.getElementById('keyframeList');
+            keyframeList.innerHTML = '';
+
+            if (currentKeyframes.length === 0) {
+                keyframeList.innerHTML = '<div style="text-align: center; color: #999; padding: 20px;">키프레임이 없습니다</div>';
+                return;
+            }
+
+            currentKeyframes.forEach((keyframe, index) => {
+                const keyframeItem = document.createElement('div');
+                keyframeItem.className = 'pose-item';
+                keyframeItem.style.borderLeftColor = '#17a2b8';
+
+                keyframeItem.innerHTML = `
+                    <div class="pose-item-header" style="flex-direction: column; align-items: flex-start; gap: 8px;">
+                        <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
+                            <span class="pose-item-name">${keyframe.name}</span>
+                            <div class="pose-item-actions">
+                                <button class="pose-item-btn load" onclick="loadKeyframeByIndex(${index})" title="포즈 적용">적용</button>
+                                <button class="pose-item-btn delete" onclick="deleteKeyframeByIndex(${index})" title="삭제">삭제</button>
+                            </div>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px; width: 100%;">
+                            <label style="font-size: 12px; color: #666;">시간:</label>
+                            <input type="number" 
+                                   value="${keyframe.time}" 
+                                   step="0.1" 
+                                   min="0"
+                                   style="width: 80px; padding: 4px 8px; border: 2px solid #17a2b8; border-radius: 4px; font-size: 12px;"
+                                   onchange="updateKeyframeTime(${index}, parseFloat(this.value))"
+                                   title="키프레임 시간 (초)">
+                            <span style="font-size: 12px; color: #999;">초</span>
+                        </div>
+                    </div>
+                `;
+
+                keyframeList.appendChild(keyframeItem);
+            });
+        }
+
+        // 키프레임 시간 업데이트
+        window.updateKeyframeTime = function(index, newTime) {
+            if (isNaN(newTime) || newTime < 0) {
+                alert('올바른 시간을 입력하세요! (0 이상)');
+                updateKeyframeList();
+                return;
+            }
+            
+            currentKeyframes[index].time = newTime;
+            
+            // 시간 순으로 재정렬
+            currentKeyframes.sort((a, b) => a.time - b.time);
+            
+            updateKeyframeList();
+            console.log(`⏱️ 키프레임 시간 업데이트: ${newTime}초`);
+        };
+
+        // 키프레임 불러오기
+        window.loadKeyframeByIndex = function(index) {
+            if (!vrm) {
+                alert('먼저 VRM 파일을 로드하세요!');
+                return;
+            }
+            resetPose();
+            applyPose(currentKeyframes[index].data);
+        };
+
+        // 키프레임 삭제
+        window.deleteKeyframeByIndex = function(index) {
+            if (confirm(`"${currentKeyframes[index].name}" 키프레임을 삭제하시겠습니까?`)) {
+                currentKeyframes.splice(index, 1);
+                updateKeyframeList();
+            }
+        };
+
+        // 모든 키프레임 삭제
+        function clearAllKeyframes() {
+            if (currentKeyframes.length === 0) {
+                alert('삭제할 키프레임이 없습니다!');
+                return;
+            }
+            
+            if (confirm(`정말로 모든 키프레임(${currentKeyframes.length}개)을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다!`)) {
+                currentKeyframes.length = 0;
+                updateKeyframeList();
+                resetPose();
+                alert('✅ 모든 키프레임이 삭제되었습니다.');
+                console.log('🗑️ 모든 키프레임 삭제됨');
+            }
+        }
+
+        // 애니메이션 저장
+        function saveAnimation() {
+            const animationName = document.getElementById('animationName').value.trim();
+            
+            if (!animationName) {
+                alert('애니메이션 이름을 입력하세요!');
+                return;
+            }
+
+            if (currentKeyframes.length < 2) {
+                alert('애니메이션을 만들려면 최소 2개의 키프레임이 필요합니다!');
+                return;
+            }
+
+            // 중복 체크
+            const existingIndex = savedAnimations.findIndex(a => a.name === animationName);
+            if (existingIndex !== -1) {
+                if (!confirm('같은 이름의 애니메이션이 있습니다. 덮어쓰시겠습니까?')) {
+                    return;
+                }
+                savedAnimations[existingIndex] = {
+                    name: animationName,
+                    keyframes: JSON.parse(JSON.stringify(currentKeyframes))
+                };
+            } else {
+                savedAnimations.push({
+                    name: animationName,
+                    keyframes: JSON.parse(JSON.stringify(currentKeyframes))
+                });
+            }
+
+            updateAnimationList();
+            document.getElementById('animationName').value = '';
+            alert(`✅ "${animationName}" 애니메이션이 저장되었습니다!`);
+        }
+
+        // 애니메이션 리스트 업데이트
+        function updateAnimationList() {
+            const animationList = document.getElementById('animationList');
+            animationList.innerHTML = '';
+
+            if (savedAnimations.length === 0) {
+                animationList.innerHTML = '<div style="text-align: center; color: #999; padding: 20px;">저장된 애니메이션이 없습니다</div>';
+                return;
+            }
+
+            savedAnimations.forEach((animation, index) => {
+                const animationItem = document.createElement('div');
+                animationItem.className = 'pose-item';
+
+                animationItem.innerHTML = `
+                    <div class="pose-item-header">
+                        <span class="pose-item-name">${animation.name} (${animation.keyframes.length}개 키프레임)</span>
+                        <div class="pose-item-actions">
+                            <button class="pose-item-btn load" onclick="loadAnimationByIndex(${index})" title="키프레임 불러오기">불러오기</button>
+                            <button class="pose-item-btn" onclick="saveAnimationAsJson(${index})" style="background: #28a745;" title="JSON 파일로 저장">💾</button>
+                            <button class="pose-item-btn delete" onclick="deleteAnimationByIndex(${index})" title="삭제">삭제</button>
+                        </div>
+                    </div>
+                `;
+
+                animationList.appendChild(animationItem);
+            });
+        }
+
+        // 애니메이션 불러오기
+        window.loadAnimationByIndex = function(index) {
+            currentKeyframes.length = 0;
+            currentKeyframes.push(...JSON.parse(JSON.stringify(savedAnimations[index].keyframes)));
+            updateKeyframeList();
+            alert(`"${savedAnimations[index].name}" 애니메이션을 불러왔습니다!`);
+        };
+
+        // 애니메이션 삭제
+        window.deleteAnimationByIndex = function(index) {
+            if (confirm(`"${savedAnimations[index].name}" 애니메이션을 삭제하시겠습니까?`)) {
+                savedAnimations.splice(index, 1);
+                updateAnimationList();
+            }
+        };
+
+        // 애니메이션 미리보기
+        function previewAnimation() {
+            if (!vrm) {
+                alert('먼저 VRM 파일을 로드하세요!');
+                return;
+            }
+
+            if (currentKeyframes.length < 2) {
+                alert('미리보기하려면 최소 2개의 키프레임이 필요합니다!');
+                return;
+            }
+
+            // 기존 mixer 정리
+            if (mixer) {
+                mixer.stopAllAction();
+            }
+            mixer = new THREE.AnimationMixer(vrm.scene);
+
+            // 애니메이션 클립 생성
+            const tracks = [];
+            const duration = currentKeyframes[currentKeyframes.length - 1].time;
+
+            // 각 본별로 트랙 생성
+            const allBones = new Set();
+            currentKeyframes.forEach(kf => {
+                Object.keys(kf.data).forEach(boneName => allBones.add(boneName));
+            });
+
+            allBones.forEach(boneName => {
+                const bone = vrm.humanoid.getNormalizedBoneNode(boneName);
+                if (!bone) return;
+
+                const times = [];
+                const values = [];
+
+                currentKeyframes.forEach(kf => {
+                    times.push(kf.time);
+                    
+                    // 오일러 각도를 쿼터니언으로 변환
+                    const euler = new THREE.Euler();
+                    if (kf.data[boneName]) {
+                        const rot = kf.data[boneName];
+                        euler.set(rot.x, rot.y, rot.z, 'XYZ');
+                    } else {
+                        euler.set(0, 0, 0, 'XYZ');
+                    }
+                    
+                    const quaternion = new THREE.Quaternion();
+                    quaternion.setFromEuler(euler);
+                    
+                    values.push(quaternion.x, quaternion.y, quaternion.z, quaternion.w);
+                });
+
+                const trackName = `${bone.name}.quaternion`;
+                const track = new THREE.QuaternionKeyframeTrack(trackName, times, values);
+                tracks.push(track);
+            });
+
+            const clip = new THREE.AnimationClip('preview', duration, tracks);
+            const action = mixer.clipAction(clip);
+            action.setLoop(THREE.LoopOnce);
+            action.clampWhenFinished = true;
+            action.reset().play();
+
+            console.log('▶️ 애니메이션 재생 시작');
+        }
+
+        // ========================================
+        // JSON 파일 저장/불러오기
+        // ========================================
+
+        // 개별 애니메이션을 JSON 파일로 저장
+        window.saveAnimationAsJson = function(index) {
+            const animation = savedAnimations[index];
+            
+            // 파일명 입력 받기
+            const fileName = prompt('저장할 파일명을 입력하세요:', animation.name);
+            
+            if (!fileName) {
+                console.log('저장 취소됨');
+                return;
+            }
+            
+            const jsonData = {
+                version: '1.0',
+                type: 'vrm-animation',
+                animations: [animation]
+            };
+
+            const jsonString = JSON.stringify(jsonData, null, 2);
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${fileName}.json`;
+            a.click();
+            
+            URL.revokeObjectURL(url);
+            console.log(`💾 ${fileName}.json 파일로 저장했습니다.`);
+        };
+
+        // 모든 애니메이션을 JSON 파일로 저장
+        function saveAllAnimationsAsJson() {
+            if (savedAnimations.length === 0) {
+                alert('저장된 애니메이션이 없습니다!');
+                return;
+            }
+
+            // 파일명 입력 받기
+            const timestamp = new Date().toISOString().slice(0, 10);
+            const defaultName = `vrm_animations_${timestamp}`;
+            const fileName = prompt('저장할 파일명을 입력하세요:', defaultName);
+            
+            if (!fileName) {
+                console.log('저장 취소됨');
+                return;
+            }
+
+            const jsonData = {
+                version: '1.0',
+                type: 'vrm-animation',
+                animations: savedAnimations
+            };
+
+            const jsonString = JSON.stringify(jsonData, null, 2);
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${fileName}.json`;
+            a.click();
+            
+            URL.revokeObjectURL(url);
+            alert(`✅ ${savedAnimations.length}개의 애니메이션을 ${fileName}.json으로 저장했습니다!`);
+        }
+
+        // JSON 파일 불러오기
+        function loadAnimationsFromJson(file) {
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                try {
+                    const jsonData = JSON.parse(e.target.result);
+                    
+                    // 버전 체크
+                    if (!jsonData.version || !jsonData.type) {
+                        throw new Error('올바른 VRM 애니메이션 JSON 파일이 아닙니다.');
+                    }
+
+                    if (jsonData.type !== 'vrm-animation') {
+                        throw new Error('VRM 애니메이션 파일이 아닙니다.');
+                    }
+
+                    // 애니메이션 불러오기
+                    const animations = jsonData.animations || [];
+                    
+                    if (animations.length === 0) {
+                        alert('애니메이션 데이터가 없습니다.');
+                        return;
+                    }
+
+                    // 중복 확인 및 추가
+                    let loadedCount = 0;
+                    let skippedCount = 0;
+
+                    animations.forEach(anim => {
+                        const existingIndex = savedAnimations.findIndex(a => a.name === anim.name);
+                        
+                        if (existingIndex !== -1) {
+                            if (confirm(`"${anim.name}" 애니메이션이 이미 있습니다. 덮어쓰시겠습니까?`)) {
+                                savedAnimations[existingIndex] = anim;
+                                loadedCount++;
+                            } else {
+                                skippedCount++;
+                            }
+                        } else {
+                            savedAnimations.push(anim);
+                            loadedCount++;
+                        }
+                    });
+
+                    updateAnimationList();
+                    
+                    let message = `✅ ${loadedCount}개의 애니메이션을 불러왔습니다!`;
+                    if (skippedCount > 0) {
+                        message += `\n⏭️ ${skippedCount}개는 건너뛰었습니다.`;
+                    }
+                    alert(message);
+
+                    console.log(`📥 JSON 파일에서 ${loadedCount}개 애니메이션 불러오기 완료`);
+
+                } catch (error) {
+                    console.error('JSON 파일 로드 실패:', error);
+                    alert('JSON 파일을 불러오는 데 실패했습니다.\n' + error.message);
+                }
+            };
+
+            reader.readAsText(file);
+        }
+
+        // JavaScript 코드 생성
+        function exportCode() {
+            if (savedAnimations.length === 0) {
+                alert('저장된 애니메이션이 없습니다!');
+                return;
+            }
+
+            let code = `// ========================================
+// VRM 애니메이션 코드 (Three.js AnimationMixer 사용)
+// 생성일: ${new Date().toLocaleString('ko-KR')}
+// ========================================
+
+`;
+
+            // 각 애니메이션 함수 생성
+            savedAnimations.forEach(animation => {
+                const functionName = animation.name.replace(/[^a-zA-Z0-9_]/g, '_');
+                
+                code += `// ${animation.name} 애니메이션 (${animation.keyframes.length}개 키프레임)\n`;
+                code += `function createAnimation_${functionName}(vrm) {\n`;
+                code += `    const mixer = new THREE.AnimationMixer(vrm.scene);\n`;
+                code += `    const tracks = [];\n`;
+                code += `    const duration = ${animation.keyframes[animation.keyframes.length - 1].time};\n\n`;
+
+                // 모든 본 수집
+                const allBones = new Set();
+                animation.keyframes.forEach(kf => {
+                    Object.keys(kf.data).forEach(boneName => allBones.add(boneName));
+                });
+
+                // 각 본별로 트랙 생성
+                allBones.forEach(boneName => {
+                    code += `    // ${BONE_NAMES_KR[boneName] || boneName}\n`;
+                    code += `    const ${boneName} = vrm.humanoid.getNormalizedBoneNode('${boneName}');\n`;
+                    code += `    if (${boneName}) {\n`;
+                    
+                    const times = [];
+                    const valuesData = [];
+                    
+                    animation.keyframes.forEach(kf => {
+                        times.push(kf.time);
+                        if (kf.data[boneName]) {
+                            const rot = kf.data[boneName];
+                            valuesData.push({ x: rot.x, y: rot.y, z: rot.z });
+                        } else {
+                            valuesData.push({ x: 0, y: 0, z: 0 });
+                        }
+                    });
+
+                    code += `        const times_${boneName} = [${times.join(', ')}];\n`;
+                    code += `        const values_${boneName} = [];\n`;
+                    
+                    // 오일러를 쿼터니언으로 변환하는 코드
+                    valuesData.forEach(rot => {
+                        code += `        const euler_tmp = new THREE.Euler(${rot.x}, ${rot.y}, ${rot.z}, 'XYZ');\n`;
+                        code += `        const quat_tmp = new THREE.Quaternion().setFromEuler(euler_tmp);\n`;
+                        code += `        values_${boneName}.push(quat_tmp.x, quat_tmp.y, quat_tmp.z, quat_tmp.w);\n`;
+                    });
+
+                    code += `        const track_${boneName} = new THREE.QuaternionKeyframeTrack(\n`;
+                    code += `            \`\${${boneName}.name}.quaternion\`,\n`;
+                    code += `            times_${boneName},\n`;
+                    code += `            values_${boneName}\n`;
+                    code += `        );\n`;
+                    code += `        tracks.push(track_${boneName});\n`;
+                    code += `    }\n\n`;
+                });
+
+                code += `    const clip = new THREE.AnimationClip('${animation.name}', duration, tracks);\n`;
+                code += `    const action = mixer.clipAction(clip);\n`;
+                code += `    action.setLoop(THREE.LoopOnce);\n`;
+                code += `    action.clampWhenFinished = true;\n`;
+                code += `    \n`;
+                code += `    return { mixer, action };\n`;
+                code += `}\n\n`;
+            });
+
+            // 애니메이션 재생 헬퍼 함수
+            code += `// 애니메이션 재생 헬퍼\n`;
+            code += `let currentMixer = null;\n\n`;
+            code += `function playAnimation(vrm, animationName) {\n`;
+            code += `    // 기존 애니메이션 정지\n`;
+            code += `    if (currentMixer) {\n`;
+            code += `        currentMixer.stopAllAction();\n`;
+            code += `    }\n\n`;
+            code += `    const animations = {\n`;
+            savedAnimations.forEach(animation => {
+                const functionName = animation.name.replace(/[^a-zA-Z0-9_]/g, '_');
+                code += `        '${animation.name}': createAnimation_${functionName},\n`;
+            });
+            code += `    };\n\n`;
+            code += `    if (animations[animationName]) {\n`;
+            code += `        const { mixer, action } = animations[animationName](vrm);\n`;
+            code += `        currentMixer = mixer;\n`;
+            code += `        action.reset().play();\n`;
+            code += `        console.log('▶️ 애니메이션 재생:', animationName);\n`;
+            code += `    } else {\n`;
+            code += `        console.error('애니메이션을 찾을 수 없습니다:', animationName);\n`;
+            code += `    }\n`;
+            code += `}\n\n`;
+
+            // animate 함수에 추가할 코드
+            code += `// ========================================\n`;
+            code += `// animate 함수에 다음 코드를 추가하세요:\n`;
+            code += `// ========================================\n`;
+            code += `// const deltaTime = clock.getDelta();\n`;
+            code += `// if (currentMixer) currentMixer.update(deltaTime);\n\n`;
+
+            // 사용 예시
+            code += `// ========================================\n`;
+            code += `// 사용 예시:\n`;
+            code += `// ========================================\n`;
+            code += `// playAnimation(vrm, '${savedAnimations[0].name}');\n`;
+
+            document.getElementById('codeOutput').textContent = code;
+            alert('✅ 코드가 생성되었습니다! 아래 코드를 복사하세요.');
+        }
+
+        // 이벤트 리스너
+        document.getElementById('vrmFile').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) loadVRM(file);
+        });
+
+        document.getElementById('jsonFile').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) loadAnimationsFromJson(file);
+        });
+
+        document.getElementById('saveAllJsonBtn').addEventListener('click', saveAllAnimationsAsJson);
+        document.getElementById('addKeyframeBtn').addEventListener('click', addKeyframe);
+        document.getElementById('resetPoseBtn').addEventListener('click', resetPose);
+        document.getElementById('clearKeyframesBtn').addEventListener('click', clearAllKeyframes);
+        document.getElementById('saveAnimationBtn').addEventListener('click', saveAnimation);
+        document.getElementById('previewAnimationBtn').addEventListener('click', previewAnimation);
+        document.getElementById('exportCodeBtn').addEventListener('click', exportCode);
+
+        // 초기화
+        initScene();
+        updateKeyframeList();
+        updateAnimationList();
+
+    </script>
+</body>
+</html>
