@@ -217,7 +217,7 @@
             border-radius: 3px;
             background: linear-gradient(to right, #667eea, #764ba2);
             outline: none;
-            -webkit-appearance: none;
+            appearance: none;
         }
 
         input[type="number"] {
@@ -591,18 +591,18 @@
             'rightShoulder', 'rightUpperArm', 'rightLowerArm', 'rightHand',
             'leftUpperLeg', 'leftLowerLeg', 'leftFoot',
             'rightUpperLeg', 'rightLowerLeg', 'rightFoot',
-            // 왼손 손가락
-            'leftThumbProximal', 'leftThumbIntermediate', 'leftThumbDistal',
-            'leftIndexProximal', 'leftIndexIntermediate', 'leftIndexDistal',
-            'leftMiddleProximal', 'leftMiddleIntermediate', 'leftMiddleDistal',
-            'leftRingProximal', 'leftRingIntermediate', 'leftRingDistal',
-            'leftLittleProximal', 'leftLittleIntermediate', 'leftLittleDistal',
-            // 오른손 손가락
-            'rightThumbProximal', 'rightThumbIntermediate', 'rightThumbDistal',
-            'rightIndexProximal', 'rightIndexIntermediate', 'rightIndexDistal',
-            'rightMiddleProximal', 'rightMiddleIntermediate', 'rightMiddleDistal',
-            'rightRingProximal', 'rightRingIntermediate', 'rightRingDistal',
-            'rightLittleProximal', 'rightLittleIntermediate', 'rightLittleDistal'
+            // 왼손 손가락 (기부 포함)
+            'leftThumbMetacarpal', 'leftThumbProximal', 'leftThumbIntermediate', 'leftThumbDistal',
+            'leftIndexMetacarpal', 'leftIndexProximal', 'leftIndexIntermediate', 'leftIndexDistal',
+            'leftMiddleMetacarpal', 'leftMiddleProximal', 'leftMiddleIntermediate', 'leftMiddleDistal',
+            'leftRingMetacarpal', 'leftRingProximal', 'leftRingIntermediate', 'leftRingDistal',
+            'leftLittleMetacarpal', 'leftLittleProximal', 'leftLittleIntermediate', 'leftLittleDistal',
+            // 오른손 손가락 (기부 포함)
+            'rightThumbMetacarpal', 'rightThumbProximal', 'rightThumbIntermediate', 'rightThumbDistal',
+            'rightIndexMetacarpal', 'rightIndexProximal', 'rightIndexIntermediate', 'rightIndexDistal',
+            'rightMiddleMetacarpal', 'rightMiddleProximal', 'rightMiddleIntermediate', 'rightMiddleDistal',
+            'rightRingMetacarpal', 'rightRingProximal', 'rightRingIntermediate', 'rightRingDistal',
+            'rightLittleMetacarpal', 'rightLittleProximal', 'rightLittleIntermediate', 'rightLittleDistal'
         ];
 
         // 한글 이름 매핑
@@ -628,34 +628,44 @@
             'rightLowerLeg': '오른쪽 종아리',
             'rightFoot': '오른발',
             // 왼손 손가락
+            'leftThumbMetacarpal': '왼손 엄지 기부',
             'leftThumbProximal': '왼손 엄지 첫마디',
             'leftThumbIntermediate': '왼손 엄지 중간마디',
             'leftThumbDistal': '왼손 엄지 끝마디',
+            'leftIndexMetacarpal': '왼손 검지 기부',
             'leftIndexProximal': '왼손 검지 첫마디',
             'leftIndexIntermediate': '왼손 검지 중간마디',
             'leftIndexDistal': '왼손 검지 끝마디',
+            'leftMiddleMetacarpal': '왼손 중지 기부',
             'leftMiddleProximal': '왼손 중지 첫마디',
             'leftMiddleIntermediate': '왼손 중지 중간마디',
             'leftMiddleDistal': '왼손 중지 끝마디',
+            'leftRingMetacarpal': '왼손 약지 기부',
             'leftRingProximal': '왼손 약지 첫마디',
             'leftRingIntermediate': '왼손 약지 중간마디',
             'leftRingDistal': '왼손 약지 끝마디',
+            'leftLittleMetacarpal': '왼손 새끼 기부',
             'leftLittleProximal': '왼손 새끼 첫마디',
             'leftLittleIntermediate': '왼손 새끼 중간마디',
             'leftLittleDistal': '왼손 새끼 끝마디',
             // 오른손 손가락
+            'rightThumbMetacarpal': '오른손 엄지 기부',
             'rightThumbProximal': '오른손 엄지 첫마디',
             'rightThumbIntermediate': '오른손 엄지 중간마디',
             'rightThumbDistal': '오른손 엄지 끝마디',
+            'rightIndexMetacarpal': '오른손 검지 기부',
             'rightIndexProximal': '오른손 검지 첫마디',
             'rightIndexIntermediate': '오른손 검지 중간마디',
             'rightIndexDistal': '오른손 검지 끝마디',
+            'rightMiddleMetacarpal': '오른손 중지 기부',
             'rightMiddleProximal': '오른손 중지 첫마디',
             'rightMiddleIntermediate': '오른손 중지 중간마디',
             'rightMiddleDistal': '오른손 중지 끝마디',
+            'rightRingMetacarpal': '오른손 약지 기부',
             'rightRingProximal': '오른손 약지 첫마디',
             'rightRingIntermediate': '오른손 약지 중간마디',
             'rightRingDistal': '오른손 약지 끝마디',
+            'rightLittleMetacarpal': '오른손 새끼 기부',
             'rightLittleProximal': '오른손 새끼 첫마디',
             'rightLittleIntermediate': '오른손 새끼 중간마디',
             'rightLittleDistal': '오른손 새끼 끝마디'
@@ -804,7 +814,8 @@
                                  boneName.includes('Index') || 
                                  boneName.includes('Middle') || 
                                  boneName.includes('Ring') || 
-                                 boneName.includes('Little');
+                                 boneName.includes('Little') ||
+                                 boneName.includes('Metacarpal');
 
                 if (isFinger) {
                     console.log(`✅ 손가락 본 생성: ${BONE_NAMES_KR[boneName] || boneName}`);
