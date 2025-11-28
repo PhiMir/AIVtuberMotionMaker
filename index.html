@@ -791,39 +791,68 @@
                 return;
             }
 
-            if (!confirm('애니메이션을 GIF로 저장하시겠습니까?\n(애니메이션이 자동으로 재생되고 저장됩니다)')) {
+            const duration = currentKeyframes[currentKeyframes.length - 1].time;
+            
+            if (!confirm(`애니메이션을 GIF로 저장하시겠습니까?\n\n시간: ${duration.toFixed(1)}초\nFPS: 10\n\n애니메이션이 자동으로 재생되고 저장됩니다.`)) {
                 return;
             }
 
+            // 녹화 초기화
             isRecording = true;
             recordingFrames = [];
             const indicator = document.getElementById('recordingIndicator');
             if (indicator) indicator.style.display = 'block';
 
-            // 애니메이션 미리보기 실행
-            previewAnimation();
+            console.log('🎬 GIF 녹화 시작!');
 
-            // 프레임 캡처 시작
-            setTimeout(() => captureGifFrames(), 100);
+            // 포즈 리셋
+            resetAllBones();
+
+            // 애니메이션 재생
+            setTimeout(() => {
+                previewAnimation();
+                
+                // 프레임 캡처 시작 (약간의 딜레이 후)
+                setTimeout(() => captureGifFrames(), 200);
+            }, 100);
         }
 
         // GIF 프레임 캡처
         function captureGifFrames() {
             if (currentKeyframes.length === 0) {
                 console.error('키프레임이 없습니다');
+                isRecording = false;
+                document.getElementById('recordingIndicator').style.display = 'none';
                 return;
             }
 
+            // 애니메이션 총 시간 (초)
             const duration = currentKeyframes[currentKeyframes.length - 1].time;
-            const fps = 10;
-            const totalFrames = Math.ceil(duration * fps) + 5; // 여유있게
-            let currentFrame = 0;
+            const fps = 10; // 10 FPS
+            const frameDelay = 1000 / fps; // 100ms
+            const totalFrames = Math.ceil(duration * fps);
+            
+            console.log(`📹 녹화 시작: ${duration}초, ${totalFrames}프레임`);
+            
+            let capturedFrames = 0;
+            const startTime = performance.now();
 
             const captureInterval = setInterval(() => {
-                if (currentFrame >= totalFrames || !isRecording) {
+                const elapsed = (performance.now() - startTime) / 1000; // 초 단위
+                
+                // 종료 조건: 프레임 수 또는 시간 초과
+                if (capturedFrames >= totalFrames || elapsed > duration + 0.5 || !isRecording) {
                     clearInterval(captureInterval);
-                    if (mixer) mixer.stopAllAction();
-                    setTimeout(() => generateGif(), 500);
+                    
+                    // 애니메이션 정지
+                    if (mixer) {
+                        mixer.stopAllAction();
+                    }
+                    
+                    console.log(`✅ 캡처 완료: ${capturedFrames}프레임`);
+                    
+                    // GIF 생성
+                    setTimeout(() => generateGif(), 300);
                     return;
                 }
 
@@ -831,12 +860,11 @@
                     const canvas = renderer.domElement;
                     const dataUrl = canvas.toDataURL('image/png');
                     recordingFrames.push(dataUrl);
+                    capturedFrames++;
                 } catch (error) {
                     console.error('프레임 캡처 실패:', error);
                 }
-
-                currentFrame++;
-            }, 1000 / fps);
+            }, frameDelay);
         }
 
         // GIF 생성
@@ -849,11 +877,11 @@
                 return;
             }
 
-            console.log(`🎞️ GIF 생성 중... (${recordingFrames.length}프레임)`);
+            console.log(`🎞️ GIF 생성 시작... (${recordingFrames.length}프레임)`);
 
             const canvas = renderer.domElement;
             const gif = new GIF({
-                workers: 2,  // GitHub Pages에서는 Worker 정상 작동
+                workers: 2,
                 quality: 10,
                 width: canvas.width,
                 height: canvas.height,
@@ -861,40 +889,55 @@
             });
 
             // 각 프레임을 이미지로 변환해서 GIF에 추가
-            const loadPromises = recordingFrames.map(dataUrl => {
-                return new Promise((resolve) => {
-                    const img = new Image();
-                    img.onload = () => {
-                        gif.addFrame(img, {delay: 100});
-                        resolve();
-                    };
-                    img.onerror = resolve; // 에러 무시
-                    img.src = dataUrl;
-                });
+            let loadedCount = 0;
+            const totalFrames = recordingFrames.length;
+
+            recordingFrames.forEach((dataUrl, index) => {
+                const img = new Image();
+                img.onload = () => {
+                    gif.addFrame(img, {delay: 100}); // 100ms = 10 FPS
+                    loadedCount++;
+                    
+                    // 모든 프레임 로드 완료
+                    if (loadedCount === totalFrames) {
+                        console.log('✅ 모든 프레임 로드 완료, GIF 렌더링 중...');
+                        gif.render();
+                    }
+                };
+                img.onerror = () => {
+                    console.error(`프레임 ${index} 로드 실패`);
+                    loadedCount++;
+                    if (loadedCount === totalFrames) {
+                        gif.render();
+                    }
+                };
+                img.src = dataUrl;
             });
 
-            Promise.all(loadPromises).then(() => {
-                gif.on('finished', function(blob) {
-                    const animName = document.getElementById('animationName')?.value || 'animation';
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `${animName}.gif`;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
+            // GIF 생성 완료
+            gif.on('finished', function(blob) {
+                const animName = document.getElementById('animationName')?.value || 'animation';
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${animName}.gif`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
 
-                    isRecording = false;
-                    const indicator = document.getElementById('recordingIndicator');
-                    if (indicator) indicator.style.display = 'none';
-                    recordingFrames = [];
+                // 정리
+                isRecording = false;
+                const indicator = document.getElementById('recordingIndicator');
+                if (indicator) indicator.style.display = 'none';
+                recordingFrames = [];
 
-                    console.log('✅ GIF 저장 완료:', animName);
-                    alert('GIF 저장 완료!');
-                });
+                console.log('✅ GIF 저장 완료:', animName);
+                alert(`GIF 저장 완료!\n파일명: ${animName}.gif`);
+            });
 
-                gif.render();
+            gif.on('progress', function(p) {
+                console.log(`GIF 생성 중... ${Math.round(p * 100)}%`);
             });
         }
 
