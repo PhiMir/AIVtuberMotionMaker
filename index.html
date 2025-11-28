@@ -497,33 +497,13 @@
             user-select: none;
         }
 
-        /* GIF 녹화 표시 */
-        .recording-indicator {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            background: rgba(255, 0, 0, 0.9);
-            color: white;
-            padding: 10px 20px;
-            border-radius: 20px;
-            font-weight: bold;
-            animation: blink 1s infinite;
-            z-index: 100;
-            display: none;
-        }
-
-        @keyframes blink {
-            0%, 50%, 100% { opacity: 1; }
-            25%, 75% { opacity: 0.5; }
-        }
-
     </style>
 </head>
 <body>
     <div class="container">
         <!-- 왼쪽 패널: 본 컨트롤 -->
         <div class="panel left-panel" id="leftPanel">
-            <div class="panel-header" onclick="window.togglePanel('leftPanel')">🎮 본 컨트롤<span class="mobile-toggle">▼</span></div>
+            <div class="panel-header" onclick="togglePanelMobile('leftPanel')">🎮 본 컨트롤<span class="mobile-toggle">▼</span></div>
             <div class="panel-content">
                                 <div class="section">
                     <div class="section-title">📁 VRM 모델</div>
@@ -551,10 +531,6 @@
         <!-- 중앙: 3D 뷰어 -->
         <div id="viewer">
             <canvas id="vrmCanvas"></canvas>
-            <div class="recording-indicator" id="recordingIndicator">
-                ⏺️ GIF 녹화 중...
-            </div>
-
             <div class="controls">
                 <p><strong>🖱️ 조작법</strong></p>
                 <p>• 마우스 드래그: 회전</p>
@@ -565,7 +541,7 @@
 
         <!-- 오른쪽 패널: 애니메이션 관리 -->
         <div class="panel right-panel" id="rightPanel">
-            <div class="panel-header" onclick="window.togglePanel('rightPanel')">🎬 애니메이션 관리<span class="mobile-toggle">▼</span></div>
+            <div class="panel-header" onclick="togglePanelMobile('rightPanel')">🎬 애니메이션 관리<span class="mobile-toggle">▼</span></div>
             <div class="panel-content">
                 <div class="section">
                     <div class="section-title">📁 파일 관리</div>
@@ -619,10 +595,6 @@
                     <button class="button button-primary" id="saveAnimationBtn">
                         💾 애니메이션 저장
                     </button>
-                    <button class="button button-secondary" id="saveGifBtn" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
-                        🎞️ GIF로 저장
-                    </button>
-
 
                     <button class="button button-primary" id="previewAnimationBtn" style="background: #17a2b8;">
                         ▶️ 미리보기
@@ -667,11 +639,6 @@
         let scene, camera, renderer, vrm, controls, mixer, clock;
         const currentKeyframes = []; // 현재 작업 중인 키프레임들
         const savedAnimations = []; // 저장된 애니메이션들
-
-        // GIF 녹화 관련
-        let gifRecorder = null;
-        let isRecording = false;
-        let recordingFrames = [];
 
         // VRM에서 사용 가능한 주요 본들
         const EDITABLE_BONES = [
@@ -763,184 +730,6 @@
         };
 
         // 3D 씬 초기화
-        
-        // 모바일 패널 토글 (window에 할당)
-        window.togglePanel = function(panelId) {
-            if (window.innerWidth <= 768) {
-                const panel = document.getElementById(panelId);
-                if (panel) {
-                    panel.classList.toggle('collapsed');
-                }
-            }
-        };
-
-        // GIF 녹화 시작
-        async function startGifRecording() {
-            if (!vrm) {
-                alert('VRM 모델을 먼저 로드하세요');
-                return;
-            }
-
-            if (currentKeyframes.length < 2) {
-                alert('최소 2개 이상의 키프레임이 필요합니다');
-                return;
-            }
-
-            if (isRecording) {
-                alert('이미 녹화 중입니다');
-                return;
-            }
-
-            const duration = currentKeyframes[currentKeyframes.length - 1].time;
-            
-            if (!confirm(`애니메이션을 GIF로 저장하시겠습니까?\n\n시간: ${duration.toFixed(1)}초\nFPS: 10\n\n애니메이션이 자동으로 재생되고 저장됩니다.`)) {
-                return;
-            }
-
-            // 녹화 초기화
-            isRecording = true;
-            recordingFrames = [];
-            const indicator = document.getElementById('recordingIndicator');
-            if (indicator) indicator.style.display = 'block';
-
-            console.log('🎬 GIF 녹화 시작!');
-
-            // 포즈 리셋
-            resetAllBones();
-
-            // 애니메이션 재생
-            setTimeout(() => {
-                previewAnimation();
-                
-                // 프레임 캡처 시작 (약간의 딜레이 후)
-                setTimeout(() => captureGifFrames(), 200);
-            }, 100);
-        }
-
-        // GIF 프레임 캡처
-        function captureGifFrames() {
-            if (currentKeyframes.length === 0) {
-                console.error('키프레임이 없습니다');
-                isRecording = false;
-                document.getElementById('recordingIndicator').style.display = 'none';
-                return;
-            }
-
-            // 애니메이션 총 시간 (초)
-            const duration = currentKeyframes[currentKeyframes.length - 1].time;
-            const fps = 10; // 10 FPS
-            const frameDelay = 1000 / fps; // 100ms
-            const totalFrames = Math.ceil(duration * fps);
-            
-            console.log(`📹 녹화 시작: ${duration}초, ${totalFrames}프레임`);
-            
-            let capturedFrames = 0;
-            const startTime = performance.now();
-
-            const captureInterval = setInterval(() => {
-                const elapsed = (performance.now() - startTime) / 1000; // 초 단위
-                
-                // 종료 조건: 프레임 수 또는 시간 초과
-                if (capturedFrames >= totalFrames || elapsed > duration + 0.5 || !isRecording) {
-                    clearInterval(captureInterval);
-                    
-                    // 애니메이션 정지
-                    if (mixer) {
-                        mixer.stopAllAction();
-                    }
-                    
-                    console.log(`✅ 캡처 완료: ${capturedFrames}프레임`);
-                    
-                    // GIF 생성
-                    setTimeout(() => generateGif(), 300);
-                    return;
-                }
-
-                try {
-                    const canvas = renderer.domElement;
-                    const dataUrl = canvas.toDataURL('image/png');
-                    recordingFrames.push(dataUrl);
-                    capturedFrames++;
-                } catch (error) {
-                    console.error('프레임 캡처 실패:', error);
-                }
-            }, frameDelay);
-        }
-
-        // GIF 생성
-        function generateGif() {
-            if (recordingFrames.length === 0) {
-                alert('녹화된 프레임이 없습니다');
-                isRecording = false;
-                const indicator = document.getElementById('recordingIndicator');
-                if (indicator) indicator.style.display = 'none';
-                return;
-            }
-
-            console.log(`🎞️ GIF 생성 시작... (${recordingFrames.length}프레임)`);
-
-            const canvas = renderer.domElement;
-            const gif = new GIF({
-                workers: 2,
-                quality: 10,
-                width: canvas.width,
-                height: canvas.height,
-                workerScript: 'https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js'
-            });
-
-            // 각 프레임을 이미지로 변환해서 GIF에 추가
-            let loadedCount = 0;
-            const totalFrames = recordingFrames.length;
-
-            recordingFrames.forEach((dataUrl, index) => {
-                const img = new Image();
-                img.onload = () => {
-                    gif.addFrame(img, {delay: 100}); // 100ms = 10 FPS
-                    loadedCount++;
-                    
-                    // 모든 프레임 로드 완료
-                    if (loadedCount === totalFrames) {
-                        console.log('✅ 모든 프레임 로드 완료, GIF 렌더링 중...');
-                        gif.render();
-                    }
-                };
-                img.onerror = () => {
-                    console.error(`프레임 ${index} 로드 실패`);
-                    loadedCount++;
-                    if (loadedCount === totalFrames) {
-                        gif.render();
-                    }
-                };
-                img.src = dataUrl;
-            });
-
-            // GIF 생성 완료
-            gif.on('finished', function(blob) {
-                const animName = document.getElementById('animationName')?.value || 'animation';
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `${animName}.gif`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-
-                // 정리
-                isRecording = false;
-                const indicator = document.getElementById('recordingIndicator');
-                if (indicator) indicator.style.display = 'none';
-                recordingFrames = [];
-
-                console.log('✅ GIF 저장 완료:', animName);
-                alert(`GIF 저장 완료!\n파일명: ${animName}.gif`);
-            });
-
-            gif.on('progress', function(p) {
-                console.log(`GIF 생성 중... ${Math.round(p * 100)}%`);
-            });
-        }
-
         function initScene() {
             const canvas = document.getElementById('vrmCanvas');
             
@@ -1093,7 +882,6 @@
                 
                 await loadVRM(file);
                 
-                // loadVRM 성공 후 UI 업데이트
                 setTimeout(() => {
                     if (vrmInfo && vrm) {
                         vrmInfo.innerHTML = '✅ <strong>Ara.vrm</strong> 자동 로드 완료!';
@@ -1106,13 +894,22 @@
                 console.log('✅ Ara.vrm 자동 로드 완료!');
             } catch (error) {
                 console.warn('⚠️ Ara.vrm 자동 로드 실패:', error.message);
-                console.log('💡 VRM 파일을 수동으로 선택해주세요.');
                 
                 if (vrmInfo) {
                     vrmInfo.innerHTML = '⚠️ Ara.vrm을 찾을 수 없습니다.<br>아래 버튼으로 VRM 파일을 선택해주세요.';
                     vrmInfo.style.background = '#fff3cd';
                     vrmInfo.style.borderLeft = '4px solid #ffc107';
                     vrmInfo.style.color = '#856404';
+                }
+            }
+        }
+
+        // 모바일 패널 토글
+        function togglePanelMobile(panelId) {
+            if (window.innerWidth <= 768) {
+                const panel = document.getElementById(panelId);
+                if (panel) {
+                    panel.classList.toggle('collapsed');
                 }
             }
         }
@@ -1846,8 +1643,6 @@
         document.getElementById('resetPoseBtn').addEventListener('click', resetPose);
         document.getElementById('clearKeyframesBtn').addEventListener('click', clearAllKeyframes);
         document.getElementById('saveAnimationBtn').addEventListener('click', saveAnimation);
-
-        document.getElementById('saveGifBtn')?.addEventListener('click', startGifRecording);
         document.getElementById('previewAnimationBtn').addEventListener('click', previewAnimation);
         document.getElementById('exportCodeBtn').addEventListener('click', exportCode);
 
@@ -1857,6 +1652,5 @@
         updateAnimationList();
 
     </script>
-    <script src="https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js"></script>
 </body>
 </html>
